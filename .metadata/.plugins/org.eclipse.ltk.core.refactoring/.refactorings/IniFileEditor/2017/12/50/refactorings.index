@@ -1,0 +1,11 @@
+1513362920907	Copy compilation unit
+1513362945651	Rename type 'IniFileChange2'
+1513363046021	Copy compilation unit
+1513363089456	Rename field 'iniFileChanges'
+1513363107064	Rename local variable 'iniFileChanges'
+1513364155415	Rename local variable 'entryDictionary'
+1513365395370	Rename local variable 'filesContainingSection'
+1513366462205	Rename method 'makeEditsToFiles'
+1513366470616	Rename method 'checkEditsToFiles'
+1513366497113	Rename local variable 'filesContainingSection'
+1513377660720	Rename method 'displayWhatWillChange'

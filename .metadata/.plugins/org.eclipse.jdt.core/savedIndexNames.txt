@@ -1,0 +1,21 @@
+INDEX VERSION 1.130+C:\Development\TomsTools\IniFileEditor\.metadata\.plugins\org.eclipse.jdt.core
+2881167831.index
+904948993.index
+2619072759.index
+3565748907.index
+4263599826.index
+1501172594.index
+2258076031.index
+2884189329.index
+1075517689.index
+1405940092.index
+2227041177.index
+1140841982.index
+1268149278.index
+3833298212.index
+308037213.index
+1846500785.index
+3156511736.index
+3926268792.index
+702867120.index
+4257325822.index

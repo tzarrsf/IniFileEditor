@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+	<!-- First INI File change set -->
+	<entry key="ini1FileNamePattern">setup.ini</entry>
+	<entry key="ini1SectionName">connect1</entry>
+	<entry key="ini1site">8602</entry>
+	<entry key="ini1timeout">9999</entry>
+	<entry key="ini1somenewkey">somenewvalue</entry>
+</properties>

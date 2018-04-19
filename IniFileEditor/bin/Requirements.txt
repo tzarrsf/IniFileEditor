@@ -1,0 +1,25 @@
+McKesson
+
+Within the setup.ini file are keys like this:
+(begin example)
+[connect1]
+reg=REG5
+site=8601
+host=10.2.2.33
+port=8990
+timeout=0
+
+[connect2]
+reg=reg2
+site=7042
+host=localhost
+port=8991
+timeout=3000
+(end example)
+
+connect1 is the JPOS data server
+connect2 is the resilient mode server
+
+We only want to change host=X.X.X.X under the connect1 to have a new entry.
+It needs to work for an IP address or host name scenario.
+The old file should be backed up prior to changes.

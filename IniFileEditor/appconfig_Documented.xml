@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<!-- unattendedMode should be set to true anytime the user will not be able to tell the program to continue such as when it is launched from another process -->
+<entry key="unattendedMode">true</entry>
+<!-- Changing hosts...
+Host entry keys must start with host and end with either add or remove. The keys must have a unique name. The value should be: IP address + pipe + hostname.
+Note: Manipulating the host file successfully requires the program to be run as administrator.
+-->
+<entry key="host1add">8.8.8.8|myhost1.com</entry>
+<entry key="host2add">9.9.9.9|myhost2.com</entry>
+<entry key="host2add">9.10.9.10|myhost3.com</entry>
+<!-- Changing INI file entries...
+INI file entries require the prefix 'ini' + groupName + suffix. Suffixes 'FileNamePattern' and 'SectionName' are required. Suffix 'RestrictSearchToDirectories'
+is optional but useful to avoid potentially scanning the whole machine. All other suffixes will be applied to the INI file without the 'ini' and group name used.
+So for group 1 to change or add the timeout to the connect1 section you can use a key of ini1timeout and it will be applied to the INI file matching the file
+pattern and section as timeout=<newvalue>
+-->
+<!-- First INI File change set -->
+<entry key="ini1FileNamePattern">setup.ini</entry>
+<entry key="ini1SectionName">connect1</entry>
+<entry key="ini1RestrictSearchToDirectories">C:\Development\TomsTools\IniFileEditor\IniFileEditor\ExampleFiles;C:\Development\TomsTools\McKessonAwsMigration\McKessonAwsMigration\src\ExampleFiles</entry>
+<entry key="ini1site">8601</entry>
+<entry key="ini1timeout">12121212</entry>
+<entry key="ini1somenewkey">somenewvalue4</entry>
+<entry key="ini1somenewkey666">somenewvalue666</entry>
+<!-- Second INI File change set -->
+<entry key="ini2FileNamePattern">tomax.ini</entry>
+<entry key="ini2SectionName">JavaPOS</entry>
+<entry key="ini2RestrictSearchToDirectories">C:\Development\TomsTools\IniFileEditor\IniFileEditor\ExampleFiles;C:\Development\TomsTools\McKessonAwsMigration\McKessonAwsMigration\src\ExampleFiles</entry>
+<entry key="ini2Printer1">receipt_changed.txt</entry>
+<entry key="ini2Printer3">receipt33.txt</entry>
+<entry key="ini2Printer4">receipt4_edited2.txt</entry>
+<entry key="ini2somenewkey">somenewvalue4</entry>
+<entry key="ini2LogoFile1">somenewvalue5</entry>
+<!-- Third  INI File change set -->
+<entry key="ini3FileNamePattern">tomtest.ini</entry>
+<entry key="ini3SectionName">Animals</entry>
+<entry key="ini3RestrictSearchToDirectories">C:\Development\TomsTools\IniFileEditor\IniFileEditor\ExampleFiles;C:\Development\TomsTools\McKessonAwsMigration\McKessonAwsMigration\src\ExampleFiles</entry>
+<entry key="ini3whale">mammal</entry>
+<entry key="ini3shark">fish</entry>
+<!-- Fourth INI File change set (actually operates on the same file as the first ina different section) -->
+<entry key="ini4FileNamePattern">setup.ini</entry>
+<entry key="ini4SectionName">connect2</entry>
+<entry key="ini4RestrictSearchToDirectories">C:\Development\TomsTools\IniFileEditor\IniFileEditor\ExampleFiles;C:\Development\TomsTools\McKessonAwsMigration\McKessonAwsMigration\src\ExampleFiles</entry>
+<entry key="ini4timeout">777</entry>
+
+</properties>

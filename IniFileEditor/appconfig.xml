@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+	<!-- unattendedMode should be set to true anytime the user will not be able to tell the program to continue such as when it is launched from another process -->
+	<entry key="unattendedMode">true</entry>
+	<entry key="ini1FileNamePattern">setup.ini</entry>
+	<entry key="ini1SectionName">connect1</entry>
+	<entry key="ini1RestrictSearchToDirectories">C:\Mckesson\client</entry>
+	<entry key="ini1host">mckprod.cloud.retail.net</entry>
+	<!-- Second INI File change set --> 
+	<entry key="ini2FileNamePattern">tomax.ini</entry>
+	<entry key="ini2SectionName">txrep</entry>
+	<entry key="ini2RestrictSearchToDirectories">C:\Mckesson\data</entry>
+	<entry key="ini2host">mckprod.cloud.retail.net</entry>
+</properties>

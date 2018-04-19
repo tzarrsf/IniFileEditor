@@ -1,0 +1,488 @@
+package com.salesforce.commercecloud.config;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.regex.Pattern;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public class Program
+{
+	private final static String unattendedMode = "unattendedMode";
+	private static boolean isUnattendedMode = false;
+	private static PropertyReader propertyReader;
+	private static Map<String,String> config;
+	private static Scanner scanner;
+	public final static Logger logger = LogManager.getLogger("com.salesforce.commercecloud.config");
+			
+	public static void main(String[] args)
+	{
+		logger.info("Starting program...");
+		long start = System.currentTimeMillis();
+		propertyReader = new PropertyReader();
+		config = propertyReader.getEntryDictionary();
+		isUnattendedMode = config.get(unattendedMode) == null ? false : Boolean.parseBoolean(config.get(unattendedMode));  
+		scanner = new Scanner(System.in);
+		processIniFileChanges();
+		processHostFileChanges();
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("Program completed in " + duration + " ms.");
+		scanner.close();
+		System.out.println("---------------------------------------");
+		System.out.println("  Execution Complete. Details in log.");
+		System.out.println("---------------------------------------");
+	}
+
+	private static void processIniFileChanges()
+	{
+		logger.info("Making INI file changes...");
+		long start = System.currentTimeMillis();
+		List<IniFileChange> iniFileChanges = IniFileChangesBuilder.BuildIniFileChanges(config);
+		if(iniFileChanges != null && iniFileChanges.size() > 0)
+		{	
+			displayWhatIniSettingsWillChange(iniFileChanges);
+			
+			if(!shouldContinue())
+			{
+				System.exit(0);
+			}
+			
+			for(IniFileChange change : iniFileChanges)
+			{
+				//Pare it down to files matching the pattern name and search restriction directories which also contain the section name
+				List<File> filesMatchingPatternName = getFilesMatchingFileNamePattern(change);
+				List<File> eligibleFiles = getFilesContainingSection(change, filesMatchingPatternName);
+				//TODO: Have these follow the same pattern as the host error handling
+				backupOriginalFiles(eligibleFiles);
+				makeEditsToIniFiles(change, eligibleFiles);
+				checkEditsToIniFiles(change, eligibleFiles);
+			}
+		}
+		else
+		{
+			logger.info("No INI file changes found in configuration.");
+		}
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("Making INI file changes completed in " + duration + ".");
+	}
+	
+	private static void processHostFileChanges()
+	{
+		logger.info("Making host file changes...");
+		long start = System.currentTimeMillis();
+		HostFileChange hostFileChange = CreateHostFileChange();
+		if(hostFileChange != null && hostFileChange.getTotalChangeCount() > 0)
+		{
+			logger.info(hostFileChange.getTotalChangeCount() + " host file changes found in configuration.");
+			displayWhatWillChangeInHostFile(hostFileChange);
+			
+			if(!shouldContinue())
+			{
+				System.exit(0);
+			}
+			
+			List<File> hostFilesToChange = getHostFiles();
+			backupOriginalFiles(hostFilesToChange);
+			makeEditsToHostFiles(hostFileChange, hostFilesToChange);
+			checkEditsToHostFiles(hostFileChange, hostFilesToChange);
+		}
+		else
+		{
+			logger.info("No host file changes found in configuration.");
+		}
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("Making host file changes completed in " + duration + " ms.");
+	}
+	
+	/**
+	 * Makes the actual changes to the INI files in place
+	 * 
+	 * @param iniFileChanges The changes to be made
+	 * @param filesContainingSection The files which contain the section of interest
+	 */
+	private static void makeEditsToIniFiles(IniFileChange iniFileChange, List<File> filesContainingSection)
+	{
+		logger.info("makeEditsToIniFiles in " + filesContainingSection.size() + " files...");
+		long start = System.currentTimeMillis();
+		
+		for(File file : filesContainingSection)
+		{
+			IniFileEditor editor = new IniFileEditor(file, iniFileChange);
+			boolean edited = editor.MakeChanges();
+			if(!edited)
+			{
+				String msg = "ERROR - Changes in file: '" + file.toPath().toString() + "' could not be made. Suggestion: Check that the program is running as administrator and that the read-only attribute is not set.";
+				System.out.println("-------------------------------");
+				System.out.println(msg);
+				System.out.println("-------------------------------");
+				logger.warn(msg);
+			}
+		}
+		
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("makeEditsToIniFiles took " + duration + " ms.");
+	}
+	
+	/**
+	 * Check the the edits to the INI files were actually committed to file by re-reading the target from disk and verifying the entries.
+	 * 
+	 * @param iniFileChanges
+	 * @param filesContainingSection
+	 */
+	private static void checkEditsToIniFiles(IniFileChange iniFileChange, List<File> filesContainingSection)
+	{
+		logger.info("checkEditsToIniFiles in " + filesContainingSection.size() + " files...");
+		long start = System.currentTimeMillis();
+		
+		for(File file : filesContainingSection)
+		{
+			IniFileEditor editor = new IniFileEditor(file, iniFileChange);
+			boolean verified = editor.VerifyChanges();
+			if(!verified)
+			{
+				String msg = "ERROR - Changes in file: '" + file.toPath().toString() + "' could not be verified. Suggestion: Check that the program is running as administrator and that the read-only attribute is not set.";
+				System.out.println("-------------------------------");
+				System.out.println(msg);
+				System.out.println("-------------------------------");
+				logger.warn(msg);
+			}
+		}
+		
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("checkEditsToIniFiles took " + duration + " ms.");
+	}
+	
+	/**
+	 * Don't change the system without backing up the original and crash the script if we can't back up the file.
+	 * 
+	 * @param filesToBackup
+	 */
+	private static void backupOriginalFiles(List<File> filesToBackup)
+	{
+		logger.info("backupOriginalFiles...");
+		long start = System.currentTimeMillis();
+		
+		for(File file : filesToBackup)
+		{
+			BackupCreator backupCreator = new BackupCreator(file.toPath().toString());
+			boolean backupResult = backupCreator.backupFile();
+			
+			if(!backupResult)
+			{
+				String msg = "ERROR - Could not backup file: '" + file.toPath().toString() + "'. Suggestion: Check that the program is running as administrator and that the read-only attribute is not set.";
+				System.out.println("-------------------------------");
+				System.out.println(msg);
+				System.out.println("-------------------------------");
+				logger.warn(msg);
+			}
+		}
+		
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("backupOriginalFiles took " + duration + " ms.");
+	}
+
+	/**
+	 * Check the files that we found according to fileNamePattern and make a list of those which contain any of our section names
+	 * @param iniFileChanges The INI file changes to be made
+	 * @param filesMatchingPatternName Files of interest 
+	 * @return The list of files which contain the relevant section
+	 */
+	private static List<File> getFilesContainingSection(IniFileChange iniFileChange, List<File> filesMatchingPatternName)
+	{
+		logger.info("getFilesContainingSection...");
+		long start = System.currentTimeMillis();
+		List<File> filesContainingSection = new ArrayList<File>();
+		
+		for(File file : filesMatchingPatternName)
+		{
+			IniFileEditor iniFileEditor = new IniFileEditor(file, iniFileChange);
+			boolean containsSection = iniFileEditor.containsSection();
+			if(containsSection)
+			{
+				filesContainingSection.add(file);
+			}
+		}
+		
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("getFilesContainingSection took " + duration + " ms.");
+		return filesContainingSection;
+	}
+	
+	/**
+	 * Get a list of files matching the pattern of the file name taking into account search restrictions.
+	 * 
+	 * @param iniFileChanges
+	 * @return
+	 */
+	private static List<File> getFilesMatchingFileNamePattern(IniFileChange iniFileChange)
+	{
+		List<File> filesMatchingPatternName = new ArrayList<File>();
+		logger.info("getFilesMatchingFileNamePattern...");
+		long start = System.currentTimeMillis();
+		FileFinder fileFinder = new FileFinder(iniFileChange.getFilePattern(), iniFileChange.getRestrictSearchToDirectoriesAsList());
+		List<File> foundFiles = fileFinder.findConfigFiles();
+		if(foundFiles != null && !foundFiles.isEmpty())
+		{
+			filesMatchingPatternName.addAll(foundFiles);
+		}
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("getFilesMatchingFileNamePattern took " + duration + " ms.");
+		return filesMatchingPatternName;
+	}
+	
+	/**
+	 * Communicate to the user what the program will be changing.
+	 * @param iniFileChanges
+	 */
+	private static void displayWhatIniSettingsWillChange(List<IniFileChange> iniFileChanges)
+	{
+		logger.info("displayWhatIniSettingsWillChange invoked...");
+		long start = System.currentTimeMillis();
+		System.out.println("-----------------------------------");
+		System.out.println("  INI file changes");
+		System.out.println("-----------------------------------");
+		System.out.println("This program will back up your file(s) and create new file(s) with different key entries by section as follows:");
+		
+		for(IniFileChange change : iniFileChanges)
+		{
+			System.out.println("Group Name: " + change.getGroupName());
+			System.out.println("\tFile:" + change.getFilePattern());
+			
+			if(change.getRestrictSearchToDirectoriesAsList() != null && change.getRestrictSearchToDirectoriesAsList().size() > 0)
+			{
+				System.out.println("\t\tcontained within directories and children:");
+				for(File file : change.getRestrictSearchToDirectoriesAsList())
+				{
+					System.out.println("\t\t\t" + file.toString());
+				}
+			}
+			
+			System.out.println("\tSection: [" + change.getSection() + "]");
+			for(String key : change.getEntryDictionary().keySet())
+			{
+				System.out.println("\t\t" + key + "=" + change.getEntryDictionary().get(key));
+			}
+		}
+		
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("displayWhatIniSettingsWillChange completed in " + duration + " ms.");
+	}
+	
+	/**
+	 * Solicit input from the user as to whether the program should continue
+	 * @return the result of whether to continue operations in the script
+	 */
+	private static boolean shouldContinue()
+	{
+		long stop, start, duration;
+		logger.info("shouldContinue invoked...");
+		start = System.currentTimeMillis();	
+		
+		//Short circuit for developer testing
+		if(isUnattendedMode)
+		{
+			logger.debug("Skipping shouldContinue prompt (unattended mode).");
+		}
+		else
+		{
+			System.out.println("-----------------------------------");
+			System.out.println("Type 'C' to continue or 'Q' to quit.");
+			System.out.println("-----------------------------------");
+			String input = null;
+			
+			try
+			{
+				if(scanner.hasNext())
+				{
+					input = scanner.next();
+				}
+			}
+			catch(Exception exception)
+			{
+				logger.error("Error in shouldContinue: " + exception.toString());
+			}
+			
+			if(input != null && input.toUpperCase().equals("Q"))
+			{
+				logger.info("User input 'Q'. Exiting Program.");
+				System.out.println("-----------------------------------");
+				System.out.println("  Exiting Program per user input.");
+				System.out.println("-----------------------------------");
+				return false;
+			}
+		}
+		
+		stop = System.currentTimeMillis();
+		duration = stop - start;
+		logger.info("shouldContinue took " + duration + " ms. Long duration in this entry could be from user delaying their input.");
+		return true;
+	}
+	
+	/**
+	 * Get a list of all host file changes. These tags will start with host: hostadd or hostremove.
+	 * 
+	 * @return List of changes to make to the host file
+	 */
+	public static HostFileChange CreateHostFileChange()
+	{
+		logger.info("Creating Host file changes...");
+		long start = System.currentTimeMillis();
+		PropertyReader propertyReader = new PropertyReader();
+		Map<String,String> config = propertyReader.getEntryDictionary();
+		
+		HostFileChange hostFileChange = new HostFileChange("hosts");
+		Map<String, String> hostAddEntry = new HashMap<String, String>();
+		Map<String, String> hostRemoveEntry = new HashMap<String, String>();
+
+		//Filter through keys that start with host...
+		for(String key : config.keySet())
+		{
+			if(!key.toLowerCase().startsWith("host"))
+			{
+				continue;
+			}
+			//...and have an ending of "add"
+			if(key.toLowerCase().endsWith("add"))
+			{
+				String[] chunks = config.get(key).split(Pattern.quote("|"));
+				String left = chunks[0];
+				String right = chunks[chunks.length - 1];
+				hostAddEntry.put(right, left);
+			}
+			//...or have an ending of "remove"
+			if(key.toLowerCase().endsWith("remove"))
+			{
+				String[] chunks = config.get(key).split(Pattern.quote("|"));
+				String left = chunks[0];
+				String right = chunks[chunks.length - 1];
+				hostRemoveEntry.put(right, left);
+			}
+		}
+		
+		hostFileChange.setAddEntryDictionary(hostAddEntry);
+		hostFileChange.setRemoveEntryDictionary(hostRemoveEntry);
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("Creating Host file changes took " + duration + " ms.");
+		return hostFileChange;
+	}
+	
+	/**
+	 * Display what will change in the host file.
+	 * @param hostFileChanges
+	 */
+	private static void displayWhatWillChangeInHostFile(HostFileChange hostFileChanges)
+	{
+		logger.info("displayWhatWillChangeInHostFile invoked...");
+		long start = System.currentTimeMillis();
+		System.out.println("-----------------------------------");
+		System.out.println("  Hosts file changes");
+		System.out.println("-----------------------------------");
+		System.out.println("This program will back up your file(s) and create new file(s) with entries as follows:");
+		if(hostFileChanges.getAddEntryDictionary() != null && hostFileChanges.getAddEntryDictionary().size() > 0)
+		{
+			System.out.println("\t" + hostFileChanges.getAddEntryDictionary().size() + " Addition(s):");
+			for(String key : hostFileChanges.getAddEntryDictionary().keySet())
+			{
+				String value = hostFileChanges.getAddEntryDictionary().get(key);
+				System.out.println("\t\t" + key + "\t" + value);
+			}
+		}
+		if(hostFileChanges.getRemoveEntryDictionary() != null && hostFileChanges.getRemoveEntryDictionary().size() > 0)
+		{
+			System.out.println("\t" + hostFileChanges.getRemoveEntryDictionary().size() + " Removal(s):");
+			for(String key : hostFileChanges.getRemoveEntryDictionary().keySet())
+			{
+				String value = hostFileChanges.getRemoveEntryDictionary().get(key);
+				System.out.println("\t\t" + key + "\t" + value);
+			}
+		}
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("displayWhatWillChangeInHostFile took " + duration + " ms.");
+	}
+	
+	/**
+	 * Make the actual changes to the host files in place
+	 * @param hostFileChanges
+	 * @param hostFilesToChange
+	 */
+	private static void makeEditsToHostFiles(HostFileChange hostFileChange, List<File> hostFilesToChange)
+	{
+		if(hostFileChange == null)
+		{
+			return;
+		}
+		logger.info("makeEditsToHostFiles in " + hostFilesToChange.size() + " files...");
+		long start = System.currentTimeMillis();
+		for(File file : hostFilesToChange)
+		{
+			HostFileEditor editor = new HostFileEditor(file, hostFileChange);
+			boolean edited = editor.MakeChanges();
+			if(!edited)
+			{
+				String msg = "ERROR - Changes in file: '" + file.toPath().toString() + "' could not be made. Suggestion: Check that the program is running as administrator and that the read-only attribute is not set.";
+				System.out.println("-------------------------------");
+				System.out.println(msg);
+				System.out.println("-------------------------------");
+				logger.warn(msg);
+			}
+		}
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("makeEditsToHostFiles took " + duration + " ms.");
+	}
+	
+	/**
+	 * Check that the edits were actually made to the host file by reading it again off disk and checking for values
+	 * @param hostFileChanges
+	 * @param hostFilesToChange
+	 */
+	private static void checkEditsToHostFiles(HostFileChange hostFileChange, List<File> hostFilesToChange)
+	{
+		logger.info("checkEditsToHostFiles in " + hostFilesToChange.size() + " files...");
+		long start = System.currentTimeMillis();
+		for(File file : hostFilesToChange)
+		{
+			HostFileEditor editor = new HostFileEditor(file, hostFileChange);
+			boolean verified = editor.VerifyChanges();
+			if(!verified)
+			{
+				String msg = "ERROR - Changes in file: '" + file.toPath().toString() + "' could not be verified. Suggestion: Check that the program is running as administrator and that the read-only attribute is not set.";
+				System.out.println("-------------------------------");
+				System.out.println(msg);
+				System.out.println("-------------------------------");
+				logger.warn(msg);
+			}
+		}
+		long stop = System.currentTimeMillis();
+		long duration = stop - start;
+		logger.info("checkEditsToHostFiles took " + duration + " ms.");
+	}
+	
+	/**
+	 * Produce a list of files that will be treated with the host file changes. For now, we only care about ye olde system32/drivers/etc/hosts file.
+	 * @return
+	 */
+	private static List<File> getHostFiles()
+	{
+		String osDrive = System.getenv("SystemDrive");
+		String filePath = osDrive + "\\Windows\\system32\\drivers\\etc\\hosts";   
+		List<File> results = new ArrayList<File>();
+		results.add(new File(filePath));
+		return results;
+	}
+}
